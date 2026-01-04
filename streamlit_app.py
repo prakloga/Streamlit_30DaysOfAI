@@ -22,7 +22,10 @@ prompt = st.text_input("Enter your prompt:")
 # Run LLM Inference
 if st.button("Generate Response"):
     df = session.range(1).select(
-        ai_complete(model=model, prompt=prompt).alias("response")
+        ai_complete(model=model
+                    , prompt=prompt
+                    , model_parameters={"temperature": 0.7}
+                    ).alias("response")
     )
 
     # Get and display response
