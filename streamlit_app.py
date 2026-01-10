@@ -1,83 +1,61 @@
-#Day 7: Theming and Layout
+#Day 9: Understanding Session State
 import streamlit as st
-import json
-import time
-from snowflake.snowpark.functions import ai_complete
 
-# Connect to Snowflake
-try:
-    # Works in Streamlit in Snowflake
-    from snowflake.snowpark.context import get_active_session
-    session = get_active_session()
-    
-except:
-    # Works locally and on Streamlit community cloud
-    from snowflake.snowpark import Session
-    session = Session.builder.configs(st.secrets["connections"]["snowflake"]).create()
+st.title(":material/memory: Understanding Session State")
+st.warning("**Instructions** Try clicking the + and - bottons in both columns to see the difference.")
 
-# Cached LLM Function
-@st.cache_data
-def call_cortex_llm(prompt_text):
-    """Makes a call to Cortex AI with the given prompt."""
-    model = "claude-3-5-sonnet"
-    df = session.range(1).select(
-        ai_complete(
-            model = model,
-            prompt = prompt_text
-        ).alias("response")
-    )
+# Create two columns for side-by-side comparison
+col1, col2 = st.columns(2)
 
-    # Get and parse response
-    response_raw = df.collect()[0][0]
-    response_json = json.loads(response_raw)
-    return response_json
+# ---Column1: Wrong way
+with col1:
+    st.header(":material/cancel: Standard Variable")
+    st.write("This resets on every click")
 
-# --- App UI ---
-# Input Widgets
-st.subheader(":material/input: Input content")
-content = st.text_input("Content URL:", "https://docs.snowflake.com/en/user-guide/views-semantic/overview")
+    # This line runs every time you click ANY button on the page.
+    # It effectively erases your progress immediately.
+    count_wrong = 0
 
-with st.sidebar:
-    st.title(":material/post: LinkedIn Post Generator v3")
-    st.success("An app for generating LinkedIn post using content from input link.")
-    tone = st.selectbox("Tone:", ["Professional", "Casual", "Funny"])
-    word_count = st.slider("Approximate word count:",50,300,100)
+    # We use nested columns here to put the + and - buttons side-by-side
+    subcol_left, subcol_right = st.columns(2)
 
-# Generate button
-if st.button("Generate Post"):
-    
-    # Initialize the status container
-    with st.status("Starting engine...", expanded=True) as status:
-        # Step 1: Construct Prompt
-        st.write(":material/psychology: Thinking: Analyzing constraints and tone...")
+    with subcol_left:
+        # Note: We must give every button a unique 'key'
+        if st.button(":material/add:", key="std_plus"):
+            count_wrong += 1
+    with subcol_right:
+        if st.button(":material/remove:", key="std_minus"):
+            count_wrong -= 1
 
-        # Add a slight delay
-        time.sleep(2)
+    st.metric("Standard Count", count_wrong)
+    st.caption("It never get past 1 or -1 because `count_wrong` resets to 0 before the math happens")
+   
+# --- COLUMN 2: THE RIGHT WAY ---
+with col2:
+    st.header(":material/check_circle: Session State")
+    st.write("This memory persists.",)
 
-        prompt = f"""
-        You are an expert social media manager. Generate a LinkedIn post based on the following:
+    # 1. Initialization: create the key only if it does not exist yet
+    if "counter" not in st.session_state:
+        st.session_state.counter = 0
 
-        Tone: {tone}
-        Desired Length: Approximately {word_count} words
-        Use content from this URL: {content}
+    # We use nested columns here as well
+    subcol_left_2, subcol_right_2 = st.columns(2)
 
-        Generate only LinkedIn post text. Use dash for bullet points.
-        """
+    with subcol_left_2:
+        # 2. Modification: Update the dictionary value (Increment)
+        if st.button(":material/add:", key="state_plus"):
+            st.session_state.counter += 1
 
-        # Step 2: Call API
-        st.write(":material/flash_on: Generating: contacting Snowflake Cortex...")
+    with subcol_right_2:
+        # 2. Modification: Update the dictionary value (Decrement)
+        if st.button(":material/remove:", key="state_remove"):
+            st.session_state.counter -= 1
 
-        # Add slight delay
-        time.sleep(2)
+    # 3. Read: Display the value
+    st.metric("State Count", st.session_state.counter)
+    st.caption("This works because we only set the counter to 0 if it doesn't exist.")
 
-        # This is the blocking call that takes time
-        response = call_cortex_llm(prompt)
-
-        # Step 3: Update Status to Complete
-        st.write(":material/check_circle: Post Generation completed!")
-        status.update(label="Post Generated Successfully", state="complete", expanded=False)
-
-    # Display result
-    with st.container(border=True):
-        st.subheader(":material/output: Generated post:")
-        st.markdown(response)    
+# Footer
+st.divider()
+st.caption("Day 9: Understanding Session State | 30 Days of AI")
